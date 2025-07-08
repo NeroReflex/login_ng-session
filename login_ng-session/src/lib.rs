@@ -26,5 +26,3 @@ pub mod signal;
 
 #[cfg(test)]
 pub(crate) mod tests;
-
-pub extern crate login_ng;

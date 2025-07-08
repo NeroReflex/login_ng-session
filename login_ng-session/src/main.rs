@@ -21,7 +21,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use login_ng::users::{get_user_by_name, os::unix::UserExt};
 use login_ng_session::dbus::SessionManagerDBus;
 use login_ng_session::desc::NodeServiceDescriptor;
 use login_ng_session::errors::SessionManagerError;
@@ -31,14 +30,94 @@ use login_ng_session::signal::Signal;
 use std::time::{SystemTime, UNIX_EPOCH};
 use zbus::connection;
 
+pub(crate) fn get_unix_username(uid: u32) -> Option<String> {
+    unsafe {
+        let mut result = std::ptr::null_mut();
+        let amt = match libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) {
+            n if n < 0 => 512 as usize,
+            n => n as usize,
+        };
+        let mut buf = Vec::with_capacity(amt);
+        let mut passwd: libc::passwd = std::mem::zeroed();
+
+        match libc::getpwuid_r(
+            uid,
+            &mut passwd,
+            buf.as_mut_ptr(),
+            buf.capacity() as libc::size_t,
+            &mut result,
+        ) {
+            0 if !result.is_null() => {
+                let ptr = passwd.pw_name as *const _;
+                let username = std::ffi::CStr::from_ptr(ptr).to_str().unwrap().to_owned();
+                Some(username)
+            }
+            _ => None,
+        }
+    }
+}
+
+pub(crate) fn get_home_dir(uid: u32) -> Option<String> {
+    unsafe {
+        let mut result = std::ptr::null_mut();
+        let amt = match libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) {
+            n if n < 0 => 512 as usize,
+            n => n as usize,
+        };
+        let mut buf = Vec::with_capacity(amt);
+        let mut passwd: libc::passwd = std::mem::zeroed();
+
+        match libc::getpwuid_r(
+            uid,
+            &mut passwd,
+            buf.as_mut_ptr(),
+            buf.capacity() as libc::size_t,
+            &mut result,
+        ) {
+            0 if !result.is_null() => {
+                let ptr = passwd.pw_dir as *const _;
+                let username = std::ffi::CStr::from_ptr(ptr).to_str().unwrap().to_owned();
+                Some(username)
+            }
+            _ => None,
+        }
+    }
+}
+
+pub(crate) fn get_shell(uid: u32) -> Option<String> {
+    unsafe {
+        let mut result = std::ptr::null_mut();
+        let amt = match libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) {
+            n if n < 0 => 512 as usize,
+            n => n as usize,
+        };
+        let mut buf = Vec::with_capacity(amt);
+        let mut passwd: libc::passwd = std::mem::zeroed();
+
+        match libc::getpwuid_r(
+            uid,
+            &mut passwd,
+            buf.as_mut_ptr(),
+            buf.capacity() as libc::size_t,
+            &mut result,
+        ) {
+            0 if !result.is_null() => {
+                let ptr = passwd.pw_shell as *const _;
+                let username = std::ffi::CStr::from_ptr(ptr).to_str().unwrap().to_owned();
+                Some(username)
+            }
+            _ => None,
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), SessionManagerError> {
-    let username = login_ng::users::get_current_username().unwrap();
+    let username = get_unix_username(unsafe { libc::getuid() }).unwrap();
 
-    let user = get_user_by_name(username.as_os_str()).expect("Failed to get user information");
+    let user_homedir = PathBuf::from(get_home_dir(unsafe { libc::getuid() }).expect("Failed to get user information"));
     let load_directories = vec![
-        user.clone()
-            .home_dir()
+        user_homedir
             .join(".config")
             .join("login_ng-session"),
         PathBuf::from("/etc/login_ng-session/"),
@@ -64,7 +143,7 @@ async fn main() -> Result<(), SessionManagerError> {
             login_ng_session::errors::NodeLoadingError::FileNotFound(filename) => {
                 // if the default target is missing use the default user shell
                 if filename == default_service_name {
-                    let shell = user.shell().to_string_lossy().into_owned();
+                    let shell = get_shell(unsafe { libc::getuid() }).expect("Failed to get user information");
 
                     eprintln!(
                         "Definition for {default_service_name} not found: using shell {shell}"
