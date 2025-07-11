@@ -107,7 +107,6 @@ jobs:
     - name: Build bitbake
       run: |
         mkdir ../bitbake
-        rm Cargo.lock
         cd login_ng-session
         cargo build
         /github/home/.cargo/bin/cargo-bitbake bitbake
