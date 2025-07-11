@@ -26,7 +26,7 @@ install_sessionexec: sessionexec/target/$(TARGET)/$(BUILD_TYPE)/sessionexec
 install: install_login_ng-session install_sessionexec
 
 .PHONY: build
-build: fetch login_ng-gui/target/$(TARGET)/$(BUILD_TYPE)/login_ng-gui 
+build: sessionexec/target/$(TARGET)/$(BUILD_TYPE)/sessionexec login_ng-session/target/$(TARGET)/$(BUILD_TYPE)/login_ng-session login_ng-session/target/$(TARGET)/$(BUILD_TYPE)/login_ng-sessionctl
 
 .PHONY: fetch
 fetch: Cargo.lock
